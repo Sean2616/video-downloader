@@ -1,0 +1,4 @@
+flask
+yt-dlp[default,curl-cffi]
+deno
+gunicorn

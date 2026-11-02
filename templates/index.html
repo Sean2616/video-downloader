@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All-in-One Video Downloader (SD & HD)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="max-w-xl w-full bg-slate-800 rounded-2xl shadow-xl p-6 md:p-8 border border-slate-700">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                Video Downloader SD / HD
+            </h1>
+            <p class="text-slate-400 text-sm mt-2">
+                Unduh video dari YouTube, Instagram, dan Facebook dengan pilihan resolusi lengkap.
+            </p>
+        </div>
+
+        <!-- Form Input URL -->
+        <div class="flex flex-col sm:flex-row gap-3">
+            <input 
+                type="url" 
+                id="videoUrl" 
+                placeholder="Tempel link YouTube, IG, atau FB di sini..." 
+                class="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500"
+                required
+            >
+            <button 
+                onclick="checkVideo()" 
+                id="btnCheck"
+                class="px-6 py-3 bg-blue-600 hover:bg-blue-500 font-semibold rounded-xl transition duration-200">
+                Cari Video
+            </button>
+        </div>
+
+        <!-- Pesan Error / Loading -->
+        <div id="statusMessage" class="hidden mt-4 text-center text-sm p-3 rounded-lg"></div>
+
+        <!-- Hasil Pratinjau Video & Pilihan Resolusi -->
+        <div id="resultCard" class="hidden mt-6 bg-slate-900 p-4 rounded-xl border border-slate-700">
+            <div class="flex flex-col sm:flex-row gap-4 items-center">
+                <img id="videoThumb" src="" alt="Thumbnail" class="w-full sm:w-40 h-28 object-cover rounded-lg bg-slate-800">
+                <div class="flex-1 text-center sm:text-left">
+                    <span id="videoPlatform" class="text-xs font-bold uppercase px-2 py-1 bg-purple-600/30 text-purple-300 rounded">Platform</span>
+                    <h3 id="videoTitle" class="font-semibold text-base mt-2 line-clamp-2">Judul Video</h3>
+                    <p id="videoDuration" class="text-xs text-slate-400 mt-1">Durasi: -</p>
+                </div>
+            </div>
+
+            <!-- Form Pemilihan Resolusi & Unduh -->
+            <form action="/api/download" method="POST" class="mt-5 space-y-3 border-t border-slate-800 pt-4">
+                <input type="hidden" name="url" id="downloadUrlInput">
+                
+                <div>
+                    <label for="resolutionSelect" class="block text-xs text-slate-400 mb-1 font-medium">
+                        Pilih Kualitas / Resolusi Video:
+                    </label>
+                    <select 
+                        name="resolution" 
+                        id="resolutionSelect" 
+                        class="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                        <!-- Opsi resolusi akan diisi otomatis oleh JavaScript -->
+                    </select>
+                </div>
+
+                <button 
+                    type="submit" 
+                    class="w-full py-3 bg-green-600 hover:bg-green-500 font-semibold rounded-xl transition duration-200 flex justify-center items-center gap-2">
+                    <span>Unduh Sekarang</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <footer class="mt-8 text-xs text-slate-500 text-center">
+        Hanya untuk penggunaan pribadi & edukasi. Hormati hak cipta kreator.
+    </footer>
+
+    <script>
+        async function checkVideo() {
+            const urlInput = document.getElementById('videoUrl').value.trim();
+            const statusMessage = document.getElementById('statusMessage');
+            const resultCard = document.getElementById('resultCard');
+            const btnCheck = document.getElementById('btnCheck');
+            const resSelect = document.getElementById('resolutionSelect');
+
+            if (!urlInput) {
+                showStatus('Silakan masukkan URL terlebih dahulu.', 'error');
+                return;
+            }
+
+            resultCard.classList.add('hidden');
+            btnCheck.disabled = true;
+            btnCheck.innerText = 'Memproses...';
+            showStatus('Sedang memindai informasi & resolusi video...', 'loading');
+
+            try {
+                const response = await fetch('/api/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: urlInput })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Gagal mengambil data video.');
+                }
+
+                document.getElementById('videoThumb').src = data.thumbnail || 'https://via.placeholder.com/300x200?text=No+Thumbnail';
+                document.getElementById('videoTitle').innerText = data.title;
+                document.getElementById('videoDuration').innerText = `Durasi: ${data.duration || '-'}`;
+                document.getElementById('videoPlatform').innerText = data.extractor;
+                document.getElementById('downloadUrlInput').value = data.url;
+
+                // Isi dropdown resolusi secara dinamis
+                resSelect.innerHTML = '';
+
+                // 1. Opsi Otomatis Terbaik
+                const bestOpt = document.createElement('option');
+                bestOpt.value = 'best';
+                bestOpt.textContent = '✨ Otomatis (Kualitas Tertinggi yang Tersedia)';
+                resSelect.appendChild(bestOpt);
+
+                // 2. Daftar Resolusi dari HD ke SD
+                if (data.resolutions && data.resolutions.length > 0) {
+                    data.resolutions.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.height;
+                        opt.textContent = `🎬 ${item.label} (MP4)`;
+                        resSelect.appendChild(opt);
+                    });
+                }
+
+                // 3. Opsi Audio MP3 Saja
+                const audioOpt = document.createElement('option');
+                audioOpt.value = 'audio';
+                audioOpt.textContent = '🎵 Hanya Audio / Musik (MP3 - 192kbps)';
+                resSelect.appendChild(audioOpt);
+
+                statusMessage.classList.add('hidden');
+                resultCard.classList.remove('hidden');
+
+            } catch (err) {
+                showStatus(err.message, 'error');
+            } finally {
+                btnCheck.disabled = false;
+                btnCheck.innerText = 'Cari Video';
+            }
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMessage');
+            el.classList.remove('hidden', 'bg-red-500/20', 'text-red-300', 'bg-blue-500/20', 'text-blue-300');
+            if (type === 'error') {
+                el.classList.add('bg-red-500/20', 'text-red-300');
+            } else {
+                el.classList.add('bg-blue-500/20', 'text-blue-300');
+            }
+            el.innerText = msg;
+        }
+    </script>
+</body>
+</html>
