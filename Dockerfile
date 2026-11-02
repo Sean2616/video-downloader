@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+# Instal FFmpeg asli Linux di dalam server Docker
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -U pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Berikan izin akses folder sementara (wajib untuk Hugging Face Spaces)
+RUN mkdir -p /tmp/downloads && chmod -R 777 /tmp/downloads /app
+
+# Port 7860 untuk Hugging Face, atau otomatis mengikuti $PORT di Render
+EXPOSE 7860
+
+CMD sh -c "gunicorn app:app --bind 0.0.0.0:${PORT:-7860} --timeout 300 --workers 2 --threads 4"
